@@ -3,6 +3,14 @@
 # Görsel boyutu
 IMAGE_SIZE = 224
 
+# Veri klasörleri
+TRAIN_DIR = "data/processed/train"
+VAL_DIR = "data/processed/val"
+
+# ImageNet üzerinde pretrained modeller için standart normalizasyon
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+
 # Eğitim ayarları
 BATCH_SIZE = 32
 NUM_CLASSES = 8
