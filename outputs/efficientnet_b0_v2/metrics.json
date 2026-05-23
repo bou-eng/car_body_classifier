@@ -1,0 +1,79 @@
+{
+    "model_name": "efficientnet_b0_v2",
+    "best_epoch": 18,
+    "best_val_f1": 0.7862976609254146,
+    "accuracy": 0.7981366459627329,
+    "macro_precision": 0.8489877060817113,
+    "macro_recall": 0.7981366459627328,
+    "macro_f1": 0.7862976609254146,
+    "weighted_precision": 0.8489877060817111,
+    "weighted_recall": 0.7981366459627329,
+    "weighted_f1": 0.7862976609254145,
+    "model_size_mb": 15.617506980895996,
+    "dropout": 0.4,
+    "label_smoothing": 0.1,
+    "fine_tune_lr": 3e-05,
+    "classification_report": {
+        "HATCHBACK": {
+            "precision": 0.7133333333333334,
+            "recall": 0.6645962732919255,
+            "f1-score": 0.6881028938906752,
+            "support": 161.0
+        },
+        "MICRO": {
+            "precision": 0.9937106918238994,
+            "recall": 0.9813664596273292,
+            "f1-score": 0.9875,
+            "support": 161.0
+        },
+        "OPEN_WHEEL": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 161.0
+        },
+        "PICK_UP": {
+            "precision": 0.8636363636363636,
+            "recall": 0.9440993788819876,
+            "f1-score": 0.9020771513353115,
+            "support": 161.0
+        },
+        "SEDAN": {
+            "precision": 0.9090909090909091,
+            "recall": 0.2484472049689441,
+            "f1-score": 0.3902439024390244,
+            "support": 161.0
+        },
+        "STATION_WAGON": {
+            "precision": 0.48773006134969327,
+            "recall": 0.9875776397515528,
+            "f1-score": 0.6529774127310062,
+            "support": 161.0
+        },
+        "SUV": {
+            "precision": 0.8495575221238938,
+            "recall": 0.5962732919254659,
+            "f1-score": 0.7007299270072993,
+            "support": 161.0
+        },
+        "VAN": {
+            "precision": 0.9748427672955975,
+            "recall": 0.9627329192546584,
+            "f1-score": 0.96875,
+            "support": 161.0
+        },
+        "accuracy": 0.7981366459627329,
+        "macro avg": {
+            "precision": 0.8489877060817113,
+            "recall": 0.7981366459627328,
+            "f1-score": 0.7862976609254146,
+            "support": 1288.0
+        },
+        "weighted avg": {
+            "precision": 0.8489877060817111,
+            "recall": 0.7981366459627329,
+            "f1-score": 0.7862976609254145,
+            "support": 1288.0
+        }
+    }
+}
