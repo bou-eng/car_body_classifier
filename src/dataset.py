@@ -70,7 +70,7 @@ def get_dataloaders(train_dir=TRAIN_DIR, val_dir=VAL_DIR, batch_size=BATCH_SIZE)
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=2,
+        num_workers=0 ,
         pin_memory=True,
     )
     val_loader = DataLoader(
