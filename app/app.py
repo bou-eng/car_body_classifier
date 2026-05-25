@@ -1,128 +1,167 @@
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 import torch
-import torch.nn as nn
 from PIL import Image
-from torchvision import models, transforms
 
 
-APP_DIR = Path(__file__).resolve().parent
-REPO_ROOT = APP_DIR.parent
-MODEL_PATH = REPO_ROOT / "models" / "smoke_mobilenetv3.pth"
+ROOT_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT_DIR / "src"
 
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
-
-def get_device() -> torch.device:
-	if torch.cuda.is_available():
-		return torch.device("cuda")
-	if torch.backends.mps.is_available():
-		return torch.device("mps")
-	return torch.device("cpu")
-
-
-def build_model(num_classes: int) -> nn.Module:
-	model = models.mobilenet_v3_large(weights=None)
-	in_features = model.classifier[3].in_features
-	model.classifier[3] = nn.Linear(in_features, num_classes)
-	return model
-
-
-def get_transform() -> transforms.Compose:
-	return transforms.Compose(
-		[
-			transforms.Resize((224, 224)),
-			transforms.ToTensor(),
-			transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-		]
-	)
-
-
-@st.cache_resource
-def load_model():
-	device = get_device()
-	checkpoint = torch.load(MODEL_PATH, map_location=device)
-
-	classes = checkpoint["classes"]
-	model = build_model(len(classes))
-	model.load_state_dict(checkpoint["model_state_dict"])
-	model.to(device)
-	model.eval()
-
-	return model, classes, device
-
-
-def predict(image: Image.Image, model, classes, device):
-	image_tensor = get_transform()(image).unsqueeze(0).to(device)
-
-	start_time = time.perf_counter()
-	with torch.no_grad():
-		outputs = model(image_tensor)
-		probabilities = torch.softmax(outputs, dim=1)[0]
-	elapsed_time = time.perf_counter() - start_time
-
-	pred_idx = int(torch.argmax(probabilities).item())
-	pred_class = classes[pred_idx]
-	confidence = float(probabilities[pred_idx].item())
-
-	prob_dict = {
-		classes[index]: float(probabilities[index].detach().cpu())
-		for index in range(len(classes))
-	}
-
-	return pred_class, confidence, prob_dict, elapsed_time
+from predict import (  # noqa: E402
+    CLASS_TO_NUMBER,
+    MODEL_PATH,
+    PROJECT_CLASS_ORDER,
+    get_transform,
+    load_model,
+)
 
 
 st.set_page_config(
-	page_title="Car Body Type Classifier",
-	layout="wide",
+    page_title="Araba Gövde Tipi Sınıflandırma",
+    page_icon="🚗",
+    layout="wide",
 )
 
-st.title("Araba Gövde Tipi Sınıflandırma")
-st.write("Bir görsel yükleyin, ardından tahmini, güven skorunu ve sınıf olasılıklarını görün.")
+
+@st.cache_resource
+def load_cached_model():
+    return load_model(MODEL_PATH)
+
+
+def predict_uploaded_image(image: Image.Image):
+    model, classes, device, checkpoint = load_cached_model()
+    transform = get_transform()
+
+    image_tensor = transform(image).unsqueeze(0).to(device)
+
+    start_time = time.time()
+
+    with torch.no_grad():
+        outputs = model(image_tensor)
+        probabilities = torch.softmax(outputs, dim=1)[0]
+
+    elapsed_time = time.time() - start_time
+
+    pred_idx = int(torch.argmax(probabilities).item())
+    pred_class = classes[pred_idx]
+    pred_number = CLASS_TO_NUMBER[pred_class]
+    confidence = float(probabilities[pred_idx].detach().cpu().item())
+
+    probabilities_by_class = {
+        classes[i]: float(probabilities[i].detach().cpu().item())
+        for i in range(len(classes))
+    }
+
+    ordered_probabilities = {
+        class_name: probabilities_by_class.get(class_name, 0.0)
+        for class_name in PROJECT_CLASS_ORDER
+    }
+
+    return {
+        "model_name": checkpoint["model_name"],
+        "predicted_class": pred_class,
+        "predicted_number": pred_number,
+        "confidence": confidence,
+        "elapsed_time": elapsed_time,
+        "probabilities": ordered_probabilities,
+        "device": str(device),
+    }
+
+
+st.title("🚗 Araba Gövde Tipi Sınıflandırma")
+st.write(
+    "Bu arayüz, yüklenen araba görselinin gövde tipini eğitilmiş final model ile tahmin eder."
+)
 
 if not MODEL_PATH.exists():
-	st.error(f"Model bulunamadı: {MODEL_PATH}")
-	st.stop()
+    st.error(f"Model dosyası bulunamadı: {MODEL_PATH}")
+    st.stop()
 
-model, classes, device = load_model()
-st.write(f"Kullanılan cihaz: `{device}`")
+model, classes, device, checkpoint = load_cached_model()
+
+with st.sidebar:
+    st.header("Model Bilgisi")
+    st.write(f"**Model:** {checkpoint.get('model_name', 'Bilinmiyor')}")
+    st.write(f"**Cihaz:** {device}")
+    st.write(f"**Girdi boyutu:** {checkpoint.get('image_size', 224)}x{checkpoint.get('image_size', 224)}")
+    st.write(f"**Sınıf sayısı:** {len(classes)}")
+
+    if "best_val_f1" in checkpoint:
+        st.write(f"**Best Val F1:** {checkpoint['best_val_f1']:.4f}")
+
+    st.divider()
+
+    st.header("Sınıf Numaraları")
+    for class_name in PROJECT_CLASS_ORDER:
+        st.write(f"{CLASS_TO_NUMBER[class_name]} → {class_name}")
+
 
 uploaded_file = st.file_uploader(
-	"Bir araba görseli yükle",
-	type=["jpg", "jpeg", "png", "webp"],
+    "Bir araba görseli yükle",
+    type=["jpg", "jpeg", "png", "webp", "bmp"],
 )
 
-if uploaded_file is not None:
-	image = Image.open(uploaded_file).convert("RGB")
+if uploaded_file is None:
+    st.info("Tahmin yapmak için bir görsel yükle.")
+    st.stop()
 
-	col_image, col_result = st.columns(2)
+image = Image.open(uploaded_file).convert("RGB")
 
-	with col_image:
-		st.subheader("Yüklenen Görsel")
-		st.image(image, use_container_width=True)
+left_col, right_col = st.columns([1, 1])
 
-	with col_result:
-		st.subheader("Tahmin Sonucu")
+with left_col:
+    st.subheader("Yüklenen Görsel")
+    st.image(image, use_container_width=True)
 
-		if st.button("Tahmin Yap"):
-			pred_class, confidence, prob_dict, elapsed_time = predict(
-				image,
-				model,
-				classes,
-				device,
-			)
+with right_col:
+    st.subheader("Tahmin Sonucu")
 
-			st.success(f"Tahmin sınıfı: {pred_class}")
-			st.write(f"Güven skoru: %{confidence * 100:.2f}")
-			st.write(f"Tahmin süresi: {elapsed_time:.4f} saniye")
+    if st.button("Tahmin Yap", type="primary"):
+        result = predict_uploaded_image(image)
 
-			st.subheader("Sınıf Olasılıkları")
-			st.bar_chart(prob_dict)
-else:
-	st.info("Başlamak için bir görsel yükleyin.")
+        st.success(f"Tahmin: {result['predicted_class']}")
+
+        metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+        with metric_col1:
+            st.metric("Sınıf Numarası", result["predicted_number"])
+
+        with metric_col2:
+            st.metric("Güven Skoru", f"%{result['confidence'] * 100:.2f}")
+
+        with metric_col3:
+            st.metric("Tahmin Süresi", f"{result['elapsed_time']:.4f} sn")
+
+        st.write(f"**Kullanılan model:** {result['model_name']}")
+        st.write(f"**Çalışma cihazı:** {result['device']}")
+
+        st.subheader("Tüm Sınıfların Olasılık Dağılımı")
+
+        probabilities_df = pd.DataFrame(
+            {
+                "Sınıf": list(result["probabilities"].keys()),
+                "Olasılık": [value * 100 for value in result["probabilities"].values()],
+            }
+        )
+
+        st.bar_chart(
+            probabilities_df,
+            x="Sınıf",
+            y="Olasılık",
+            use_container_width=True,
+        )
+
+        st.dataframe(
+            probabilities_df.sort_values("Olasılık", ascending=False),
+            use_container_width=True,
+            hide_index=True,
+        )
